@@ -1,0 +1,16 @@
+{{- $_ := required "The cluster has no stage, did you assign it one of the cluster/<stage> groups?" $.Values.Common.stage -}}
+{{- $_ := required "The cluster has no cloud, did you assign it one of the cloud/<cloud> groups?" $.Values.Common.cloud -}}
+{{- $baseDomain := get $.Values.Common.domains.base $.Values.Common.stage -}}
+{{- with $.Values.baseDomain -}}
+  {{- $baseDomain = . -}}
+{{- end -}}
+{{- $_ := required "No basedomain found, check $.Values.Common.stage and $.Values.Common.domains.base or $.Values.baseDomain" $baseDomain -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-inventory
+  namespace: {{ $.Release.Namespace }}
+data:
+  inventory: |
+{{- ( tpl (.Files.Get "files/inventory.yaml") . )  | fromYaml | toJson | nindent 4  }}

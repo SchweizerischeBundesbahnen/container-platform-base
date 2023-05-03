@@ -1,0 +1,66 @@
+---
+# A single instance of this chart is intended to install the same operator setup (Namespace + OperatorGroup + Subscription)
+# into multiple namespaces.
+
+
+# operatorInstanceDefaults: Default settings used to install an OLM operator into a namespace
+operatorInstanceDefaults:
+
+  # Namespace configuration. The name will defined by the operatorInstances entry (see below).
+  namespace:
+    # whether to create a namespace for the operator instance
+    # if this is false it is assumed the instance will be installed in
+    # an existing namespace
+    create: false
+
+    annotations: {}
+    labels: {}
+
+  # The OperatorGroup definition. All fields not explicitely listed here will be rendered as
+  # is into the spec of the OperatorGroup.
+  operatorGroup:
+
+    # whether to install an operator group in the namespace of the operator instance
+    create: true
+
+  #  annotations: {}
+  #  global: true
+  #  labels: {}
+  #  name: "global-operators"
+  #  providedAPIs: ""
+
+  # A plain Subscription definition
+  subscription:
+
+    # whether to install the subscription of the operator
+    # setting this to false will result in the operator not being installed
+    create: true
+
+  #  annotations: {}
+  #  labels: {}
+  #  name: {}
+  #  spec: {}
+
+  # Dictionary of arbitrary Kubernetes resources that will be created alongside each Subscription
+  # If the Subscription is not created in a namespace, the configResources are not created also.
+  # The configResources are Helm templates, so it is possible to access values via .Values.
+  configResources: {}
+
+
+# operatorInstances: Dictionary of operator instances to create/manage
+#
+# Each instance will inherit the configuration from the .Values.operatorInstanceDefaults
+# but can customize or overwrite each parameter. This way it is possible to install a completely
+# new operator in completely new namespaces or to just install an OperatorGroup into a set of
+# already existing namespaces.
+# The "operatorVersion" field of the installPlanApprover accepts a list of version (underscore separated) or a single version.
+operatorInstances: {}
+#  openshift-operators:
+#    namespace:
+#      create: true
+#    subscription:
+#      spec:
+#        startingCSV: myoperator.v1.4.2
+#    installPlanApprover:
+#      enabled: true
+#      operatorVersion: "v1.4.1_v1.4.2"

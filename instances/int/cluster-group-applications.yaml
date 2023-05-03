@@ -1,0 +1,43 @@
+---
+# clusterGroupApps: List of applications per cluster group
+#
+# Each key in the clusterGroupApps dict represents a cluster group (clusterGroupApps['somegroup'])
+# that a cluster can have assigned in its "groups" field (see values.yaml for details).
+# Group names can be arbitrarly choosen, so clusterGroupApps can contain groups that are not
+# used (as of yet) by any cluster. Careful with typos as there is no check if a group "exists"
+# (a group exists when it is used somewhere, including here).
+#
+# Format
+#
+# clusterGroupApps:
+#   <group>:
+#     applications: []
+#     excludes: []
+#
+# Fields
+#
+#   applications        (optional)  List of applications that will be assigned to each cluster that
+#                                   the corresponding group assigned. Has the same format as the per cluster
+#                                   "application" field (see values.yaml for details).
+#   excludes            (optional)  List of application names to exclude if a cluster has the corresponding group
+#                                   assigned. Has the same format as the per cluster "excludeApplications" field
+#                                   (see values.yaml for details).
+#                                   The excludes are incremental, e.g. they are only applied to applications
+#                                   assigned to the cluster by groups coming before the one having the exclude.
+#                                   See the "group.applications" template documentation in the _helpers.tpl file
+#                                   for details.
+#                                   As with everything related to groups: the order of the groups matters!.
+clusterGroupApps:
+  # all clusters are imlicitely in the "all" group
+  all:
+    applications:
+      - name: "cluster-inventory"
+        namespace: "cluster-inventory"
+    excludes: []
+  cloud/aws:
+    applications:
+      - name: "gitops-operator"
+        sharedChart: "olm-operator"
+        namespace: gitops-operator
+        project: "default"
+    excludes: []

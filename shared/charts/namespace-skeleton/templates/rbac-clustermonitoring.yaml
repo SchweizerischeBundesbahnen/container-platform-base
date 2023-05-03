@@ -1,0 +1,39 @@
+{{- range $namespace, $nsConfig := .Values.namespaces }}
+{{- $nsName := tpl $namespace $ }}
+{{- $clusterMonitoring := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.clusterMonitoring) | mergeOverwrite $clusterMonitoring }}
+{{- $_ := deepCopy (default (dict) $nsConfig.clusterMonitoring) | mergeOverwrite $clusterMonitoring }}
+{{- if $clusterMonitoring.enable }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $nsName }}-prometheus
+  namespace: {{ $nsName }}
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - services
+      - endpoints
+      - pods
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $nsName }}-prometheus
+  namespace: {{ $nsName }}
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-k8s
+    namespace: openshift-monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $nsName }}-prometheus
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,43 @@
+{{- range $namespace, $instance := .Values.operatorInstances }}
+{{- $options := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.operatorInstanceDefaults) | mergeOverwrite $options }}
+{{- $_ := deepCopy $instance | mergeOverwrite $options }}
+{{- if $options.installPlanApprover.enabled }}
+{{- $createSa := true }}
+{{- if and (hasKey $options.installPlanApprover.serviceAccount "create") (not $options.installPlanApprover.serviceAccount.create) -}}
+{{- $createSa = false }}
+{{- end }}
+{{- if $createSa }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: installplan-update
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - installplans
+      - subscriptions
+    verbs:
+      - get
+      - delete
+      - list
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: installplan-update
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name:  installplan-update
+subjects:
+  - kind: ServiceAccount
+    name: {{ $options.installPlanApprover.serviceAccount.name }}
+---
+{{ end }}
+{{ end }}
+{{ end }}

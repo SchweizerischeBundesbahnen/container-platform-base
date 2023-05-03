@@ -1,0 +1,25 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-instance-apps
+  namespace: ocp-argocd
+spec:
+  destination:
+    namespace: ocp-argocd
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: instances/prod
+    repoURL: https://github.com/schweizerischeBundesbahnen/container-platform-base.git
+    targetRevision: master
+    helm:
+      valueFiles:
+        - values.yaml
+        - clusters.yaml
+        - projects.yaml
+        - cluster-group-applications.yaml
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true

@@ -1,0 +1,16 @@
+---
+Common:
+  cloud:
+    provider: open-telekon-cloud
+    id: otc
+    location:
+      - Zollikofen
+      - Bern
+  network:
+    zone: internal
+
+  domains:
+    base:
+      dev: dev-otc.sbb.ch
+      test: test-otc.sbb.ch
+      prod: prod-otc.sbb.ch

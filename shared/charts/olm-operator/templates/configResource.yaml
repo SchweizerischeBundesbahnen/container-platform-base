@@ -1,0 +1,9 @@
+{{- range $namespace, $instance := .Values.operatorInstances }}
+{{- $options := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.operatorInstanceDefaults) | mergeOverwrite $options }}
+{{- $_ := deepCopy $instance | mergeOverwrite $options }}
+{{- range $_, $resource := $options.configResources }}
+---
+{{ tpl $resource (dict "namespace" (dict "name" $namespace "options" $options) "Values" $.Values "Template" $.Template) }}
+{{- end }}
+{{- end }}

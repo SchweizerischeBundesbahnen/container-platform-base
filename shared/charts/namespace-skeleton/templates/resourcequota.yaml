@@ -1,0 +1,42 @@
+{{- range $namespace, $nsConfig := .Values.namespaces }}
+{{- $nsName := tpl $namespace $ }}
+{{- $resourceQuota := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.resourceQuota) | mergeOverwrite $resourceQuota }}
+{{- $_ := deepCopy (default (dict) $nsConfig.resourceQuota) | mergeOverwrite $resourceQuota }}
+{{- with $resourceQuota }}
+kind: ResourceQuota
+apiVersion: v1
+metadata:
+  name: {{ .name }}
+  namespace: {{ $nsName }}
+spec:
+  {{- toYaml .spec | nindent 2 }}
+---
+{{- end }}
+
+{{- $priorityClassQuota := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.priorityClassQuota) | mergeOverwrite $priorityClassQuota }}
+{{- $_ := deepCopy (default (dict) $nsConfig.priorityClassQuota) | mergeOverwrite $priorityClassQuota }}
+{{- with $priorityClassQuota }}
+{{- if .enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .name }}
+  namespace: {{ $nsName }}
+spec:
+  hard:
+    pods: "0"
+  scopeSelector:
+    matchExpressions:
+    - operator : Exists
+      scopeName: PriorityClass
+{{- with .permittedPriorityClasses }}
+    - operator : NotIn
+      scopeName: PriorityClass
+      values: {{- keys . | toYaml | nindent 8 }}
+{{- end }}
+{{- end }}
+---
+{{- end }}
+{{- end }}

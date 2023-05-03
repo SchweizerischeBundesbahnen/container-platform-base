@@ -1,0 +1,24 @@
+{{- if .Values.clusterRoles }}
+{{- fail ".clusterRoles is deprecated. Use .rbac.<name>.clusterRole" }}
+{{- end }}
+{{- range $name, $value := .Values.rbac }}
+{{- with $value.clusterRole }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ default $name .name | trunc 63 | trimSuffix "-" }}
+  {{- with .labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- $_ := unset . "annotations" }}
+{{- $_ := unset . "labels" }}
+{{- $_ := unset . "name" }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}

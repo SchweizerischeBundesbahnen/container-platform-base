@@ -1,0 +1,89 @@
+{{- range $projectName, $project := .Values.projects }}
+---
+{{- $stdSpec := omit $project "destinations" "roles" }}
+{{- if not $stdSpec.sourceRepos }}
+  {{- $_ := set $stdSpec "sourceRepos" (list "*") }}
+{{- end }}
+{{- if not $stdSpec.clusterResourceWhitelist }}
+  {{- $_ := set $stdSpec "clusterResourceWhitelist" (list (dict "group" "*" "kind" "*")) }}
+{{- end }}
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: {{ $projectName }}
+  namespace: {{ $.Values.argocdNamespace }}
+spec:
+{{- with $stdSpec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+
+{{- $destinations := list }}
+{{- range $destination := $project.destinations }}
+  {{- $ns := default "*" $destination.namespace }}
+
+  {{- $servers := list  }}
+
+  {{- if not $destination.server }}
+    {{- with $destination.serverName }}
+      {{- $nameRegex := printf "^%s$" . }}
+      {{- range $cluster := $.Values.clusters }}
+        {{- if regexMatch $nameRegex $cluster.name }}
+          {{- $servers = append $servers (printf "https://%s" $cluster.api) }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- else }}
+    {{- $servers = append $servers $destination.server }}
+  {{- end }}
+
+  {{- if not $servers }}
+    {{- $servers = list "*" }}
+  {{- end }}
+
+  {{- range $server := $servers }}
+    {{- $dst := dict "namespace" $ns "server" $server }}
+    {{- $destinations = append $destinations $dst }}
+  {{- end }}
+{{- end }}
+
+{{- if not $destinations }}
+  {{- $destinations = list (dict "namespace" "*" "server" "*")}}
+{{- end }}
+
+{{- with $destinations }}
+  destinations:
+    {{- toYaml $destinations | nindent 2 }}
+{{- end }}
+
+{{- $roles := list }}
+{{- range $role := $project.roles }}
+  {{- $base := omit $role "ref" "policies" }}
+  {{- $result := dict }}
+  {{- with $role.ref }}
+    {{- $refRole := default dict (get $.Values.projectRoleTemplates .) }}
+    {{- $refName := default . $refRole.name }}
+    {{- $_ := set $refRole "name" $refName }}
+    {{- $_ := mergeOverwrite $result $refRole }}
+  {{- end }}
+  {{- $_ := mergeOverwrite $result $base }}
+
+  {{- $rawPolicies := concat (default list $result.policies) (default list $role.policies) }}
+  {{- $policies := list }}
+  {{- $self := dict "name" $result.name "project" $projectName "subject" (printf "proj:%s:%s" $projectName $result.name) }}
+  {{- range $policy := $rawPolicies }}
+    {{- $pol := tpl $policy (dict "self" $self "Values" $.Values "Template" $.Template) }}
+    {{- $policies = append $policies $pol}}
+  {{- end }}
+  {{- with $policies }}
+    {{- $_ := mergeOverwrite $result (dict "policies" .) }}
+  {{- end }}
+
+  {{- $roles = append $roles $result }}
+{{- end }}
+
+{{- with $roles }}
+  roles:
+    {{- toYaml $roles | nindent 2 }}
+{{- end }}
+
+{{- end }}

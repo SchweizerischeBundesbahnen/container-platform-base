@@ -1,0 +1,28 @@
+{{- range $namespace, $config := .Values.namespaces }}
+{{- $nsName := tpl $namespace $ }}
+{{- $annotations := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.annotations) | mergeOverwrite $annotations }}
+{{- $_ := deepCopy (default (dict) $config.annotations) | mergeOverwrite $annotations }}
+{{- $clusterMonitoring := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.clusterMonitoring) | mergeOverwrite $clusterMonitoring }}
+{{- $_ := deepCopy (default (dict) $config.clusterMonitoring) | mergeOverwrite $clusterMonitoring }}
+{{- $labels := (dict) }}
+{{- if $clusterMonitoring.enable }}
+{{- $labels = dict "openshift.io/cluster-monitoring" "true" }}
+{{- end }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.labels) | mergeOverwrite $labels }}
+{{- $_ := deepCopy (default (dict) $config.labels) | mergeOverwrite $labels }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+{{- with $annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- with $labels }}
+  labels:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  name: {{ $nsName }}
+{{- end }}

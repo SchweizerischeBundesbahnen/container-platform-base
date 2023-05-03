@@ -1,0 +1,39 @@
+{{- range $namespace, $instance := .Values.operatorInstances }}
+{{- $options := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.operatorInstanceDefaults) | mergeOverwrite $options }}
+{{- $_ := deepCopy $instance | mergeOverwrite $options }}
+{{- $operatorGroup := $options.operatorGroup }}
+{{- if $operatorGroup.create }}
+{{- if and ($operatorGroup.global) (gt (len $.Values.operatorInstances) 1) }}
+{{- fail "A global operator can only be installed in a single namespace!" }}
+{{- end }}
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  {{- with $operatorGroup.labels }}
+  labels: {{- toYaml . | nindent 4}}
+  {{- end }}
+  {{- $annotations := default (dict) $operatorGroup.annotations }}
+  {{- with $operatorGroup.staticProvidedAPIs }}
+    {{- $_ := set $annotations "olm.providedAPIs" . }}
+  {{- end }}
+  {{- with $annotations }}
+  annotations: {{- toYaml . | nindent 4}}
+  {{- end }}
+  name: {{ required "The operatorGroup name is required!" $operatorGroup.name }}
+  namespace: {{ $namespace }}
+spec:
+  {{- $spec := omit $operatorGroup "create" "name" "staticProvidedAPIs" "global" "targetNamespaces" "annotations" "labels"}}
+  {{- if $operatorGroup.staticProvidedAPIs }}
+  staticProvidedAPIs: true
+  {{- end }}
+  {{- if not $operatorGroup.global }}
+  targetNamespaces:
+  - {{ $namespace }}
+  {{- end }}
+  {{- with $spec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}
+{{- end }}

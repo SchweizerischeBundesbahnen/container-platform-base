@@ -1,0 +1,227 @@
+# Default values for application-namespaces.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# cluster scoped rbac settings for ClusterRoles and ClusterRolebindings
+#
+# clusterRole:        cluster-wide permissions that could be used by ServiceAccounts
+#                     in a namespace
+# clusterRoleBinding: cluster-wide association of a ClusterRole to a ServiceAccount
+#                     in a namespace
+#
+# The item key is the default name that will be used for the defined ClusterRole and/or
+# ClusterRoleBinding.
+#
+# The following configuration keys MUST be defined for ClusterRoles:
+#
+#     rules             List of permission rules to a specific API
+#
+# The following configuration keys MUST be defined for ClusterRoles:
+#
+#     roleRef           The ClusterRole to assign
+#     subject           The ServiveAccount (or User or Group) to assign the Role to;
+#                       for ServiceAccounts, the subject must also specify a namespace
+#
+# The following configuration keys are optionally accepted:
+#
+#     name              Custom name of the resource. Defaults to the item name.
+#     annotations       Dictionary of annotation key/value pairs added to the resource
+#     labels            Dictionary of label key/value pairs added to the resource
+#
+# Example:
+#
+#  rbac:
+#    custom-prometheus:
+#      clusterRole:
+#        rules:
+#        - apiGroups:
+#          - ""
+#          resources:
+#          - endpoints
+#          - pods
+#          - services
+#          verbs:
+#          - get
+#          - list
+#          - watch
+#      clusterRoleBinding:
+#        roleRef:
+#          apiGroup: rbac.authorization.k8s.io
+#          kind: ClusterRole
+#          name: custom-prometheus
+#        subjects:
+#        - apiGroup: rbac.authorization.k8s.io
+#          kind: Group
+#          name: cluster-monitoring-view
+#          namespace: pgo-monitoring
+#
+rbac: {}
+
+# namespaceDefaults: Default attributes that are valid for all namespaces
+#
+# The following configuration keys are optionally accepted:
+#
+#     annotations           Dictionary of annotation key/value pairs added to the resource
+#     labels                Dictionary of label key/value pairs added to the resource
+#     rbac                  RBAC definitions such as Roles, RoleBindings and ServiceAccounts
+#     imageRegistrySecrets  Image registry pull/push secrets
+#     networkPolicies       NetworkPolicy definitions
+#     limitRange            LimitRange definition
+#     resourceQuota         ResourceQuota definition
+#
+namespaceDefaults:
+  annotations:
+    contact-email: "some@thing.ch"
+
+  labels: {}
+
+  rbac: {}
+    # Grant admin permissions to all namespaces
+    #admin:
+    #  roleBinding:
+    #    roleRef:
+    #      apiGroup: rbac.authorization.k8s.io
+    #      kind: ClusterRole
+    #      name: admin
+    #    subjects:
+    #    - apiGroup: rbac.authorization.k8s.io
+    #      kind: Group
+    #      name: SOMEGROUP
+
+
+  # imageRegistrySecrets: Secrets for pushing or pulling images to registry
+  #
+  # The item key is the default name that will be used for the secret. The following
+  # configuration keys MUST be defined:
+  #
+  #     dockerConfig      Configuration dictionary with repository credentials.
+  #
+  # The following configuration keys are optionally accepted:
+  #
+  #     name              Custom name of the resource. Defaults to the item name.
+  #     annotations       Dictionary of annotation key/value pairs added to the resource
+  #     labels            Dictionary of label key/value pairs added to the resource
+  #
+  # Example:
+  #
+  #   imageRegistrySecrets:
+  #     external-registry:
+  #       dockerConfig:
+  #         artifactory:
+  #           auth:
+  #             url: someregistry.ch
+  #             username: foobar
+  #             password: changeme
+  #
+  imageRegistrySecrets: {}
+
+  # networkPolicies: Kubernetes NetworkPolicies that should be created in each Namespace
+  networkPolicies:
+    # Default OpenShift namespace network policy
+    defaultPolicy:
+      name: default-network-policy
+      spec:
+        podSelector: {}
+        ingress:
+          - from:
+              - podSelector: {}
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: ingress
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    policy-group.network.openshift.io/host-network: ""
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    network.openshift.io/policy-group: monitoring
+        policyTypes:
+        - Ingress
+
+  # limitRange: Define namespace LimitRange resource
+  # For cluster defaults 'default-project' Helm Chart values
+  limitRange:
+    # If the values are changed from the default values you must choose a custom name
+    name: default-limits
+    limits:
+      - type: Pod
+        max:
+          cpu: '4'
+          ephemeral-storage: 1Gi
+          memory: 32Gi
+      - type: Container
+        max:
+          cpu: '4'
+          ephemeral-storage: 1Gi
+          memory: 32Gi
+        default:
+          cpu: 500m
+          ephemeral-storage: 256Mi
+          memory: 1Gi
+        defaultRequest:
+          cpu: 100m
+          ephemeral-storage: 256Mi
+          memory: 256Mi
+        maxLimitRequestRatio:
+          cpu: '10'
+          memory: '5'
+
+  # resourceQuota: Define namespace ResourceQuota
+  resourceQuota:
+    # If the values are changed from the default values you must choose a custom name
+    name: default-mini-project-quota
+    spec:
+      hard:
+        cpu: '32'
+        memory: 64Gi
+        services.loadbalancers: '0'
+        services.nodeports: '0'
+        # Limit the amount of requestable storage per project
+        requests.storage: 1Ti
+
+  # Define a ResourceQuota that only permits the usage of certain PriorityClasses.
+  # Only relevant for Pods that actually define a PriorityClass.
+  # Technically, the ResourceQuota does not permit the usage of the permitted
+  # PriorityClasses, it prevents the creation of Pods with any PriorityClass that is
+  # not explicitely permitted.
+  priorityClassQuota:
+    # Base docu: https://kubernetes.io/docs/concepts/policy/resource-quotas/#resource-quota-per-priorityclass
+    # Ensure the error message of triggering the ResourceQuota tells the user that they are trying
+    # to use a forbidden priority class.
+    name: forbidden-priority-classes
+    # disabling the ResourceQuota on PriorityClasses permits the usage
+    # of any PriorityClass
+    enabled: true
+    # not setting any permitted PriorityClasses will prevent the usage
+    # of all PriorityClasses (as long as the PriorityClass ResourceQuota is enabled)
+    permittedPriorityClasses:
+      workload-high: {}
+
+  # Prepare namespace for access from cluster-wide Prometheus instance. This allows
+  # ServiceMonitors to be picked up by the Prometheus operator.
+  clusterMonitoring:
+    enable: false
+
+
+# namespaces: Define namespaces
+#
+# The item key is the name of the namespace. Each namespace is then defined
+# with the namespaceDefault but also accept the following customizations:
+#
+#   annotations           Dictionary of annotation key/value pairs added to the resource
+#   labels                Dictionary of label key/value pairs added to the resource
+#   rbac                  RBAC definitions
+#   imageRegistrySecrets  Image registry pull/push secrets
+#   networkPolicies       Custom NetworkPolicy definitions
+#   limitRange            LimitRange definition
+#   resourceQuota         ResourceQuota definition
+#
+# It is also possible to use a template as namespace name, e.g.
+#
+# namespaces:
+#   "{{ .Release.Namespace }}": {}
+#   othernamespace: {}
+#
+namespaces: {}

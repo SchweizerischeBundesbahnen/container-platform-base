@@ -1,0 +1,22 @@
+---
+checks:
+  addAllBuiltIn: true
+  exclude:
+    # Don't require dedicated ServiceAccount for each deployment
+    - 'default-service-account'
+    # Don't alert if Deployments only use 1 replicas
+    - 'minimum-three-replicas'
+    # Don't alert if used ServiceAccount can't be detected
+    - 'non-existent-service-account'
+    # Don't alert if containers don't have 'readOnlyRootFilesystem: true' SCC
+    - 'no-read-only-root-fs'
+    # Don't alert if Deployments use replace update strategy
+    - 'no-rolling-update-strategy'
+    # Don't require contact 'email=' annotation on each resource
+    - 'required-annotation-email'
+    # Don't require 'owner=' label on each resource
+    - 'required-label-owner'
+    # Don't alert if containers don't explicitly define 'runAsNonRoot: true' (OpenShift default)
+    - 'run-as-non-root'
+    # Don't alert if namespace for resources is not defined
+    - 'use-namespace'

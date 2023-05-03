@@ -1,0 +1,282 @@
+{{- $argocdNamespace := .Values.argocdNamespace }}
+{{- $defaultRevision := .Values.defaultRevision }}
+{{- $defaultSyncPolicy := .Values.defaultSyncPolicy }}
+{{- $defaultUseSecret := .Values.defaultUseSecret }}
+{{- $defaultAddArgoCDBuildEnv := .Values.defaultAddArgoCDBuildEnv }}
+{{- $clusterGroupApps := default (dict) $.Values.clusterGroupApps }}
+{{- $common_id := "common" }}
+
+{{- range $cluster := .Values.clusters }}
+{{- $clusterGroups := default (list) $cluster.groups }}
+{{- if ne "all" (index $clusterGroups 0) }}
+  {{ $clusterGroups = prepend $clusterGroups "all" }}
+{{- end }}
+{{- $groupApps := include "group.applications" (tuple $clusterGroups $clusterGroupApps) | fromYaml }}
+{{- $mergeResult := include "cluster.mergeDictListsByKey" (tuple "name" $groupApps.result $cluster.applications) | fromYaml }}
+{{- $apps := get $mergeResult "result" }}
+
+{{- range $application := $apps }}
+{{- if not (has $application.name (default (list) $cluster.excludeApplications)) }}
+{{- $applicationProject := default "default" $application.project }}
+{{- if eq $application.name $common_id }}
+  {{- fail (printf "Conflict: Application '%s' has the same name as the cluster group '%s' assigned to cluster '%s'" $application.name $common_id $cluster.name) }}
+{{- end }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $application.name }}-{{ $cluster.name }}
+  namespace: {{ $argocdNamespace }}
+  labels:
+    argocd.clew.sbb.ch/base-app: "{{ $application.name }}"
+    argocd.clew.sbb.ch/cluster-name: "{{ $cluster.name }}"
+{{- range $group := $clusterGroups }}
+    {{- if not (eq $group "all") }}
+    clustergroup.clew.sbb.ch/{{ $group | replace "/" "." }}: "true"
+    {{- end }}
+{{- end }}
+spec:
+  destination:
+{{- if $application.namespace }}
+    namespace: {{ $application.namespace }}
+{{- end }}
+    server: https://{{ $cluster.api }}
+  project: {{ $applicationProject }}
+  source:
+    helm:
+      parameters:
+        - name: argocdParams.clusterName
+          value: {{ $cluster.name }}
+        - name: argocdParams.clusterAPI
+          value: {{ $cluster.api }}
+        - name: argocdParams.argocdStage
+          value: {{ $.Values.argocdStage }}
+{{- if (default $defaultAddArgoCDBuildEnv $application.addArgoCDBuildEnv) }}
+        - name: argocdParams.buildEnv.ARGOCD_APP_NAME
+          value: $ARGOCD_APP_NAME
+        - name: argocdParams.buildEnv.ARGOCD_APP_NAMESPACE
+          value: $ARGOCD_APP_NAMESPACE
+        - name: argocdParams.buildEnv.ARGOCD_APP_REVISION
+          value: $ARGOCD_APP_REVISION
+        - name: argocdParams.buildEnv.ARGOCD_APP_SOURCE_PATH
+          value: $ARGOCD_APP_SOURCE_PATH
+        - name: argocdParams.buildEnv.ARGOCD_APP_SOURCE_REPO_URL
+          value: $ARGOCD_APP_SOURCE_REPO_URL
+        - name: argocdParams.buildEnv.ARGOCD_APP_SOURCE_TARGET_REVISION
+          value: $ARGOCD_APP_SOURCE_TARGET_REVISION
+        - name: argocdParams.buildEnv.KUBE_VERSION
+          value: $KUBE_VERSION
+        - name: argocdParams.buildEnv.KUBE_API_VERSIONS
+          value: $KUBE_API_VERSIONS
+{{- end }}
+
+{{- /*
+  Add helm values files
+
+  The main application value.yaml is always included and contains the least specific
+  values, meaning they are overriden by the values of all other value files.
+*/}}
+      valueFiles:
+        - values.yaml
+
+{{- /*
+  Add secret (sops encrypted) values file if requested
+
+  Overrides all application level non-secret values but is overriden
+  by all group or cluster level values.
+*/}}
+{{- if (default $defaultUseSecret $application.useSecret) }}
+        - secrets.yaml
+{{- end -}}
+
+{{- /*
+  Value file paths are relative to the chart directory, so we have to adapt the path
+  to a value file depending on whether it is a chart located in a project directory
+  or a shared chart located in the shared/charts directory.
+*/}}
+{{- $valuesPrefix := "../.." }}
+{{- if $application.sharedChart }}
+  {{- $valuesPrefix = printf "../../../projects/%s" $applicationProject }}
+{{- end }}
+
+{{- $defaultProjectValuesPrefix := "../../../default" }}
+{{- if $application.sharedChart }}
+  {{- $defaultProjectValuesPrefix = "../../../projects/default" }}
+{{- end }}
+
+{{- /*
+  Include additional application specific value files. This can be used to provide application
+  specific (that are not cluster or group specific) values in a project if a shared chart is used.
+
+    Including cluster value/secret files can be disabled by setting "ignoreApplicationValues" and/or
+    "ignoreApplicationSecret" to "true" for the application.
+*/}}
+{{- with (include "application.values" (tuple $applicationProject $application.name $.Files)) }}
+  {{- if not $application.ignoreApplicationAddonValues }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+  {{- end }}
+{{- end }}
+{{- with (include "application.secrets" (tuple $applicationProject $application.name $.Files)) }}
+  {{- if not $application.ignoreApplicationAddonSecret }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+  {{- end }}
+{{- end }}
+
+{{- /*
+  Add group value and group secret (sops encrypted) value files, if available.
+
+  Groups are ordered from least (first in the list) to most (last in the list)
+  specific where values of more specific groups override values of less specific
+  groups.
+
+  Values of the most specific group can only be overriden by cluster level values.
+
+  Including group value/secret files can be disabled by setting "ignoreGroupValues" and/or
+  "ignoreGroupSecrets" to "true" for the application.
+
+  There are two different group level values: application specific ones, stored in
+  <groupname>/<appname>.yaml files and group common ones, stored in
+  <groupname>/common.yaml files. Same for secrets (i.e. <groupname>/secrets-<appname>.yaml
+  and <groupname>/secrets-common.yaml).
+
+  If a common.yaml and or secrets-common.yaml file exists in a group and the application
+  is assigned to a cluster that has the group assigned, the common.yaml/secrets-common.yaml
+  file will allways be addedd the to application, even if it has no application specific value
+  file in this group.
+
+  If addDefaultCommonValues / addDefaultCommonSecrets is true, an application
+  in a different project than "default" gets the common.yaml / secrets-common.yaml files of
+  groups in the default project assigned in addition to the common files defined in their own
+  project.
+
+  App specific group values are treated as more specific than group common values and can override
+  group common values.
+*/}}
+{{- range $group := $clusterGroups }}
+  {{- if and $application.addDefaultCommonValues (ne $applicationProject "default") }}
+    {{- if not $application.ignoreGroupValues }}
+      {{- with (include "group.values" (tuple "default" $group $common_id $.Files)) }}
+        - {{ printf "%s/values/%s" $defaultProjectValuesPrefix . }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- if and $application.addDefaultCommonSecrets (ne $applicationProject "default") }}
+    {{- if not $application.ignoreGroupSecrets }}
+      {{- with (include "group.secrets" (tuple "default" $group $common_id $.Files)) }}
+        - {{ printf "%s/values/%s" $defaultProjectValuesPrefix . }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- if not $application.ignoreGroupValues }}
+    {{- with (include "group.values" (tuple $applicationProject $group $common_id $.Files)) }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+  {{- if not $application.ignoreGroupSecrets }}
+    {{- with (include "group.secrets" (tuple $applicationProject $group $common_id $.Files)) }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+
+  {{- if not $application.ignoreGroupValues }}
+    {{- with (include "group.values" (tuple $applicationProject $group $application.name $.Files)) }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+  {{- if not $application.ignoreGroupSecrets }}
+    {{- with (include "group.secrets" (tuple $applicationProject $group $application.name $.Files)) }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+{{- end -}}
+
+{{- /*
+  Add cluster value and cluster secret (sops encrypted) value files, if available.
+
+  Cluster level values override all other values and can only be overriden by cluster level
+  secret values.
+
+  Including cluster value/secret files can be disabled by setting "ignoreClusterValues" and/or
+  "ignoreClusterSecrets" to "true" for the application.
+
+  By adding a common.yaml / secrets-common.yaml to a cluster value directory, group common values
+  (see comment regarding group values above) can be overriden on a per cluster basis if necessary.
+
+  If addDefaultCommonValues / addDefaultCommonSecrets is true, an application
+  in a different project than "default" gets the common.yaml / secrets-common.yaml files of
+  clusters in the default project assigned in addition to the common files defined in their own
+  project.
+
+  In the default branch (normally "master") we use and autodetect mechanism to determine if
+  we have to include cluster values. For apps that are deployed from a different branch,
+  it is possible to force the inclusion of the cluster values / cluster secrets because
+  the autodetection does not work cross-branches (e.g. the autodetect can only detect files
+  in the "master" branch and if a values file is only in a feature branch, the detection fails).
+*/}}
+{{- if and $application.addDefaultCommonValues (ne $applicationProject "default") }}
+  {{- with (include "cluster.values" (tuple "default" $cluster.name $common_id $.Files)) }}
+    {{- if not $application.ignoreClusterValues }}
+        - {{ printf "%s/values/%s" $defaultProjectValuesPrefix . }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if and $application.addDefaultCommonSecrets (ne $applicationProject "default") }}
+  {{- with (include "cluster.secrets" (tuple "default" $cluster.name $common_id $.Files)) }}
+    {{- if not $application.ignoreClusterSecret }}
+        - {{ printf "%s/values/%s" $defaultProjectValuesPrefix . }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- with (include "cluster.values" (tuple $applicationProject $cluster.name $common_id $.Files)) }}
+  {{- if not $application.ignoreClusterValues }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+  {{- end }}
+{{- end }}
+
+{{- with (include "cluster.secrets" (tuple $applicationProject $cluster.name $common_id $.Files)) }}
+  {{- if not $application.ignoreClusterSecret }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+  {{- end }}
+{{- end }}
+
+{{- if and $application.revision $application.useClusterValues }}
+        - {{ printf "%s/values/clusters/%s/%s.yaml" $valuesPrefix $cluster.name $application.name }}
+{{- else }}
+  {{- with (include "cluster.values" (tuple $applicationProject $cluster.name $application.name $.Files)) }}
+    {{- if not $application.ignoreClusterValues }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- if and $application.revision $application.useClusterSecrets }}
+        - ../../values/clusters/{{ $cluster.name }}/secrets-{{ $application.name }}.yaml
+{{- else }}
+  {{- with (include "cluster.secrets" (tuple $applicationProject $cluster.name $application.name $.Files)) }}
+    {{- if not $application.ignoreClusterSecret }}
+        - {{ printf "%s/values/%s" $valuesPrefix . }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- with $application.sharedChart }}
+    path: shared/charts/{{ . }}
+{{- else }}
+    path: projects/{{ $applicationProject }}/applications/{{ $application.name }}
+{{- end }}
+    repoURL: {{ $.Values.rootRepo }}
+    targetRevision: {{ default $defaultRevision $application.revision }}
+{{- with mergeOverwrite (dict) $defaultSyncPolicy (default (dict) $application.syncPolicy) }}
+  syncPolicy: {{- . | toYaml | nindent 4 }}
+{{- end }}
+
+{{- with $application.ignoreDifferences }}
+  ignoreDifferences: {{- . | toYaml | nindent 4 }}
+{{- end }}
+
+{{- end }} {{/* if not (has $application.name ... */}}
+{{- end }} {{/* range $application ... */}}
+{{- end }} {{/* range $cluster ... */}}

@@ -1,0 +1,15 @@
+---
+Common:
+  cloud:
+    provider: Azure
+    id: azure
+    locations:
+      - Amsterdam
+  network:
+    zone: public
+
+  domains:
+    base:
+      dev: dev-azure.sbb.ch
+      test: test-azure.sbb.ch
+      prod: prod-azure.sbb.ch

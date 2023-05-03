@@ -1,0 +1,18 @@
+# Decrypted files
+*.dec
+
+# Compressed helm charts.
+# We either commit them extracted, or don't store them at all.
+*.tgz
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.idea/.gitignore
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+/.idea/
+.DS_Store
+**/.idea/workspace.xml

@@ -1,0 +1,15 @@
+---
+Common:
+  cloud:
+    provider: AWS
+    id: aws
+    locations:
+      - Frankfurt
+  network:
+    zone: public
+
+  domains:
+    base:
+      dev: dev-aws.sbb.ch
+      test: test-aws.sbb.ch
+      prod: prod-aws.sbb.ch

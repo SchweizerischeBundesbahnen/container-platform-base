@@ -1,0 +1,55 @@
+---
+namespace-skeleton:
+  namespaceDefaults:
+    annotations:
+      collectord.io/logs-output: "splunk::prod"
+      collectord.io/logs-index: "sbb_ocp_internal_test_events"
+
+  namespaces:
+    "{{ .Release.Namespace }}": {}
+
+# subjects permitted to read all configmaps in the inventory namespace
+inventoryReaders:
+  # make the inventory configmap publicly available
+  "system:authenticated":
+    apiGroup: rbac.authorization.k8s.io
+    kind: Group
+
+# All inventory writers are automatically inventory readers too
+# so there is no need to add them to the inventoryReaders above.
+# The setting is primarly intended to give inventory writer permission
+# to SAs/Users/Groups _not_ managed by this application.
+# For SAs etc. managed by this application, just create dedicated RoleBindings.
+inventoryWriters: {}
+
+# Default values; mainly used to list the keys that are in use
+# somewhere. There should be close to no reason to have any actual
+# defaults here because they would be global for the whole platform
+# "null" values are used to be able to list the key here, but to still
+# catch situations where the key is not set anywere else (e.g. if someone
+# creates a cluster and forgets to attach a group that sets the cluster stage)
+# non-null values just mean "we do not care if they are set for a cluster"
+#
+# A "_" prefix means the value cannot be used directly but needs to be "processed"
+# before it can be rendered into the template; see _baseDomain for an example
+type: dedicated
+features: {}
+
+# values expected to be provided by group common value files, i.e. <group>/common.yaml
+Common:
+  stage: null
+  cloud: null
+  routerWildcardDomain: null
+
+  network: {}
+
+  # special case: the base domain depends on the stage and the cloud provider
+  # so for each cloud provider all per-stage domains are set and the template
+  # then renders only the one matching the cluster stage
+  domains:
+    clusterIndependentIntern:
+    clusterIndependentPublic:
+    base: null
+    # dev: xxx
+    # test: xxx
+    # prod: xxx

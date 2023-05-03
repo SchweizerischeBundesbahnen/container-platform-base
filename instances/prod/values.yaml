@@ -1,0 +1,46 @@
+---
+# Default values for monitoring.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# rootRepo: Source repo to be used by all generated ArgoCD applications.
+#           All applications must be located in this repository for things
+#           like value file autodetection to work. Use wrapper / umbrella
+#           helm charts with dependencies to use helm charts in upstream repositories.
+rootRepo: https://github.com/schweizerischeBundesbahnen/container-platform-base.git
+
+# argocdNamespace: OpenShift namespace for ArgoCD resources
+argocdNamespace: "platform-argocd"
+
+# the stage of the argocd instance. Only used to pass down as parameter to applications.
+argocdStage: "prod"
+
+# defaultRevision: Default git revision/branch used for Application definitions
+defaultRevision: "master"
+
+# defaultSyncPolicy: Include an application-specific syncPolicy
+# https://argoproj.github.io/argo-cd/user-guide/auto_sync/#automated-sync-policy
+# If empty, manuall sync is required
+defaultSyncPolicy:
+  syncOptions:
+    - ApplyOutOfSyncOnly=true
+    - ServerSideApply=true
+# automated:
+#   prune: true
+#   allowEmpty: true
+#   selfHeal: true
+
+# defaultUseSecret: Include an application-specific secrets.yaml by default in the Application definition
+defaultUseSecret: false
+
+# defaultAddArgoCDBuildEnv: Add the ArgoCD build environment by default in the Application definition
+defaultAddArgoCDBuildEnv: false
+
+# projectRoleTemplates: role templates to be used in role definitions for projects
+# See the documentation for .Values.projects for details
+projectRoleTemplates:
+  sync-only:
+    description: Sync only permissions
+    policies:
+      - p, {{ .self.subject }}, applications, get, {{ .self.project }}/*, allow
+      - p, {{ .self.subject }}, applications, sync, {{ .self.project }}/*, allow

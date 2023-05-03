@@ -1,0 +1,7 @@
+---
+Common:
+  stage: dev
+
+  domains:
+    clusterIndependentIntern: appdev-int.sbb.ch
+    clusterIndependentPublic: appdev.sbb.ch

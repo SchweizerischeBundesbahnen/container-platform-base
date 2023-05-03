@@ -1,0 +1,65 @@
+---
+# pipelines-operator values for clusters in the shared/cluster group
+
+operatorInstances:
+  pipelines-operator: {}
+
+
+operatorInstanceDefaults:
+  namespace:
+    create: true
+
+  operatorGroup:
+    name: "pipelines-operator"
+    global: true
+
+  subscription:
+    name: redhat-openshift-pipelines
+    spec:
+      channel: latest
+      installPlanApproval: Manual
+      name: openshift-pipelines-operator-rh
+      source: redhat-operators
+      sourceNamespace: openshift-marketplace
+
+  configResources:
+    tektonConfig: |
+      {{- if .Values.tektonConfig }}
+      apiVersion: operator.tekton.dev/v1alpha1
+      kind: TektonConfig
+      metadata:
+        annotations:
+          # CRD is only defined after installing the operator via Subscription
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+          argocd.argoproj.io/sync-wave: "1"
+        name: config
+      spec:
+        params:
+          - name: createRbacResource
+            value: "{{ .Values.tektonConfig.rbacManagement }}"
+        {{- with $.Values.tektonConfig.pipeline }}
+        pipeline: {{- toYaml . | nindent 4}}
+        {{- end }}
+        {{- with $.Values.tektonConfig.pruner }}
+        pruner: {{- toYaml . | nindent 4 }}
+        {{- end }}
+      {{- end }}
+
+
+#
+# Non-chart values that are used in the configResources
+#
+tektonConfig:
+  # DANGER: changing this value and deploying the change to a cluster
+  # can lead to the deletion of all "edit" RoleBindings in all namespaces.
+  rbacManagement: false
+  pipeline:
+    scope-when-expressions-to-task: true
+  # disable the tekton operator pruner
+  # just setting "pruner: {}" is not enough to "empty" the pruner field
+  # it is neccessary to clear each individual field
+  pruner:
+    keep:
+    resources:
+    schedule:
+    keep-since:

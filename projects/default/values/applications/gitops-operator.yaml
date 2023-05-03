@@ -1,0 +1,27 @@
+---
+# gitops-operator values for clusters in the shared/cluster group
+
+operatorInstanceDefaults:
+
+  namespace:
+    create: true
+
+  operatorGroup:
+    name: "gitops-operator"
+    global: true
+
+  subscription:
+    name: openshift-gitops-operator
+    spec:
+      channel: gitops-1.8
+      installPlanApproval: Manual
+      name: openshift-gitops-operator
+      config:
+        env:
+          - name: 'DISABLE_DEFAULT_ARGOCD_INSTANCE'
+            value: 'true'
+      source: redhat-operators
+      sourceNamespace: openshift-marketplace
+
+operatorInstances:
+  gitops-operator: {}

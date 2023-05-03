@@ -1,0 +1,29 @@
+{{- range $namespace, $nsConfig := .Values.namespaces }}
+{{- $nsName := tpl $namespace $ }}
+{{- $networkPolicies := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.networkPolicies) | mergeOverwrite $networkPolicies }}
+{{- $_ := deepCopy (default (dict) $nsConfig.networkPolicies) | mergeOverwrite $networkPolicies }}
+{{- range $name, $policy := $networkPolicies }}
+{{- if $policy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  {{- with $policy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $policy.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ default $name $policy.name }}
+  namespace: {{ $nsName }}
+{{- $_ := unset $policy "annotations" }}
+{{- $_ := unset $policy "labels" }}
+{{- $_ := unset $policy "name" }}
+spec:
+  {{- toYaml $policy.spec | nindent 2 }}
+{{- end }}
+---
+{{- end }}
+{{- end }}

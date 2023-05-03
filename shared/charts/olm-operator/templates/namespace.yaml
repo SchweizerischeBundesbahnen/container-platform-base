@@ -1,0 +1,16 @@
+{{- range $namespace, $instance := .Values.operatorInstances }}
+{{- $options := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.operatorInstanceDefaults) | mergeOverwrite $options }}
+{{- $_ := deepCopy $instance | mergeOverwrite $options }}
+{{- if $options.namespace.create }}
+{{- $metadata := omit $options.namespace "create" "name" }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+{{- with $metadata }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+  name: {{ $namespace }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,22 @@
+{{- $readers := dict }}
+{{- $_ := deepCopy (default dict $.Values.inventoryReaders) | mergeOverwrite $readers }}
+{{- $_ := deepCopy (default dict $.Values.inventoryWriters) | mergeOverwrite $readers }}
+{{- if $readers }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-inventory-reader
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-inventory.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-inventory-reader
+subjects:
+{{- range $name, $subject := $readers }}
+- name: {{ $name }}
+  {{- tpl (omit $subject "name" | toYaml) $ | nindent 2}}
+{{- end }}
+{{- end }}

@@ -1,0 +1,20 @@
+---
+# values only used during the "helm lint" step in Jenkins; see Jenkinsfile
+argocdParams:
+  clusterName: normally-injected-by-argocd
+Common:
+  stage: lint
+  domains:
+    base:
+      lint: helm-lint.sbb.ch
+    clusterIndependentIntern: "helm-lint.int.sbb.ch"
+    clusterIndependentPublic: "helm-lint.pub.sbb.ch"
+  cloud:
+    provider: Jenkins
+    id: jk
+    locations:
+      - Bern
+  network:
+    zone: CSI
+  ssp:
+    nfsapi: false

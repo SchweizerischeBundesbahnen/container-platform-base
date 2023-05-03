@@ -1,0 +1,22 @@
+{{- range $namespace, $instance := .Values.operatorInstances }}
+{{- $options := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.operatorInstanceDefaults) | mergeOverwrite $options }}
+{{- $_ := deepCopy $instance | mergeOverwrite $options }}
+{{- if $options.subscription.create }}
+{{- $labels := default (dict) $options.subscription.labels }}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  {{- with $labels }}
+  labels: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $options.subscription.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ required "The subscription name is required!" $options.subscription.name }}
+  namespace: {{ $namespace }}
+spec:
+{{- toYaml $options.subscription.spec | nindent 2 }}
+{{- end }}
+{{- end }}

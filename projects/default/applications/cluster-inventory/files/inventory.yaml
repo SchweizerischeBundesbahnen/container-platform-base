@@ -1,0 +1,67 @@
+#
+# This yaml formated template will be used to produce the inventory json for the cluster inventory
+#
+# Sample json for cluster-a
+# {
+#   "cloud": {
+#     "id": "aws",
+#     "locations": [
+#       "Frankfurt"
+#     ],
+#     "provider": "AWS"
+#   },
+#   "dnsDomains": {
+#     "intern": [
+#       "app-int.sbb.ch"
+#     ],
+#     "public": [
+#       "app.sbb.ch"
+#     ],
+#     "wildcard": "*.apps.cluster-a.sbb.ch",
+#     "zone": {
+#       "name": "sbb.ch"
+#     }
+#   },
+#   "endpoints": {
+#     "api": "api.cluster-a.sbb.ch:6443",
+#     "console": "console-openshift-console.cluster-a.sbb.ch"
+#   },
+#   "features": {
+#     "batchnodes": {
+#       "enabled": true
+#     }
+#   },
+#   "name": "cluster-a",
+#   "network": {
+#     "zone": "public"
+#   },
+#   "stage": "prod",
+#   "type": "shared"
+# }
+
+# cluster type, shared or dedicated
+type: {{ .Values.type }}
+# stage: dev/test/prod
+stage: {{ .Values.Common.stage }}
+name: {{ .Values.argocdParams.clusterName }}
+endpoints:
+  api: {{ .Values.argocdParams.clusterAPI }}
+  console: {{ printf "console-openshift-console.%s" ( substr 4 -1 (.Values.argocdParams.clusterAPI | toString) | trimSuffix ":6443" ) }}
+# cloud information like provider, locations
+cloud: {{- .Values.Common.cloud | toYaml | nindent 6 }}
+# network information, currently we only deliver the sbb zone name like CSI
+network: {{- .Values.Common.network | toYaml | nindent 6 }}
+# domains used by cluster
+dnsDomains:
+  intern:
+  - {{ .Values.Common.domains.clusterIndependentIntern }}
+  public:
+  - {{ .Values.Common.domains.clusterIndependentPublic }}
+  zone:
+    name: {{ get $.Values.Common.domains.base $.Values.Common.stage }}
+  {{- with .Values.Common.routerWildcardDomain }}
+  wildcard: .
+  {{- else }}
+  wildcard: {{ printf "*.apps.%s.%s" .Values.argocdParams.clusterName  ( get $.Values.Common.domains.base $.Values.Common.stage ) | quote }}
+  {{- end }}
+features: {{- .Values.features | toYaml | nindent 6 }}

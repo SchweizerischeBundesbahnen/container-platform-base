@@ -1,0 +1,7 @@
+---
+Common:
+  stage: prod
+
+  domains:
+    clusterIndependentIntern: app-int.sbb.ch
+    clusterIndependentPublic: app.sbb.ch

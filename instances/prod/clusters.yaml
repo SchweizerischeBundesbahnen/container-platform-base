@@ -1,0 +1,113 @@
+---
+# clusters: List of applications per cluster
+#
+# Each list element must define the following key/value pairs:
+#
+#   name                         (required)  Cluster name used to generate the Application name
+#                                            and cluster-specific Helm value file includes
+#   api                          (required)  Cluster API URL. Used to generate the Application's
+#                                            'server' definition which must correspond to the URL
+#                                            used for a cluster in ArgoCD
+#   applications                 (optional)  List of cluster specific ArgoCD Applications that will be generated
+#                                            Instead of assining applications directly to a cluster, it is possible
+#                                            to use the cluster groups (see below) to assign applications to clusters.
+#                                            See cluster-group-applications.yaml for details.
+#   groups                       (optional)  Arbitrary list of groups the cluster belongs to. Will be used
+#                                            to add group specific applications to the cluster (see cluster-group-applications.yaml)
+#                                            as well as group specific value files to each application, if present.
+#                                            The list is ordered from least to most specific (values/applications in more specific
+#                                            groups override values/applications in less specific groups).
+#                                            Group names can contain '/' to refer to value files in subdirectories.
+#                                            The default is ["all"] (note: "all" is always the first element and cannot be overriden).
+#   excludeApplications          (optional)  List of application names that should not be deployed
+#                                            on the cluster. Mainly used to avoid deployment of
+#                                            some default applications on certain clusters.
+#                                            The default is not to exclude anything.
+#
+# Each list item in 'applications' accepts the following key/value pairs:
+#
+#   name                           (required)  Name of the application. If "sharedChart" is not set
+#                                              (see below), this must correspond to the
+#                                              directory name in the '<project>/applications/' directory of
+#                                              this repository.
+#   namespace                      (required)  OpenShift namespace that is managed by the Application
+#   project                        (optional)  The ArgoCD project this application is assigned to.
+#                                              Default is "default".
+#   sharedChart                    (optional)  If set to a value, this will used as the name of the helm chart
+#                                              instead of the application name. The value must correspond to a
+#                                              directory name in the 'shared/charts' directory.
+#                                              Default is "".
+#   revision                       (optional)  Git revision/branch used for the definition of the
+#                                              Application resources.
+#                                              Defaults to the value of 'defaultRevision'.
+#   syncPolicy                     (optional)  Argo CD has the ability to automatically sync an
+#                                              application when it detects differences between the
+#                                              desired manifests in Git, and the live state in the cluster.
+#                                              Defaults to the value of 'defaultSyncPolicy'.
+#   ignoreDifferences              (optional)  List of rules to ignore certain differences of kubernetes resources managed by
+#                                              ArgoCD. Useful / necessary if some operator changes a resource
+#                                              after it was deployed by ArgoCD (for example aggregated ClusterRoles).
+#                                              See https://argo-cd.readthedocs.io/en/latest/user-guide/diffing/
+#                                              No ignore rules are applied by default.
+#   useSecret                      (optional)  If set to 'true' it will add an additional line for a
+#                                              secrets.yaml to the 'valueFiles' list generated for
+#                                              the Application.
+#                                              Defaults to the value of 'defaultUseSecret'.
+#   useClusterSecret               (optional)  If set to 'true' it will add an additional line for a
+#                                              cluster-specific secrets-<application-name>.yaml to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              This is only required when new cluster specific secrets are
+#                                              introduced since the automatic file detection works only for master branch.
+#   useClusterValues               (optional)  If set to 'true' it will add an additional line for a
+#                                              cluster-specific <application-name>.yaml to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              This is only required when new cluster specific values are
+#                                              introduced since the automatic file detection works only for master branch.
+#   addDefaultCommonValues         (optional)  If true and the application is not in the default project,
+#                                              add common.yaml value files from value groups / cluster values in the default project
+#                                              to the app
+#   addDefaultCommonSecrets        (optional)  If true and the application is not in the default project,
+#                                              add secrets-common.yaml value files from value groups / cluster values in the
+#                                              default project to the app
+#   ignoreApplicationAddonSecret   (optional)  If set to 'true' it will ignore an existing
+#                                              secrets-<application-name>.yaml file in the application values folder and
+#                                              not add it to the 'valueFiles' list generated for the Application.
+#                                              Defaults is false.
+#   ignoreApplicationAddonValues   (optional)  If set to 'true' it will ignore an existing
+#                                              <application-name>.yaml file in the application values folder and
+#                                              not add it to the 'valueFiles' list generated for the Application.
+#                                              Defaults to false.
+#   ignoreClusterSecret            (optional)  If set to 'true' it will ignore an existing
+#                                              cluster-specific secrets-<application-name>.yaml and not add it to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              Defaults is false.
+#   ignoreClusterValues            (optional)  If set to 'true' it will ignore an existing
+#                                              cluster-specific <application-name>.yaml to and not add it to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              Defaults to false.
+#   ignoreGroupSecrets             (optional)  If set to 'true' it will ignore all existing
+#                                              group-specific secrets-<application-name>.yaml files and not add them to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              Defaults to false.
+#   ignoreGroupValues              (optional)   If set to 'true' it will ignore all existing
+#                                              group-specific <application-name>.yaml files and not add them to
+#                                              the 'valueFiles' list generated for the Application.
+#                                              Defaults to false.
+#   addArgoCDBuildEnv              (optional)  Adds the ArgoCD build environment as Helm Values if set to 'true'.
+#                                              See https://argo-cd.readthedocs.io/en/latest/user-guide/build-environment/
+#                                              Defaults to the value of 'defaultAddArgoCDBuildEnv'.
+
+clusters:
+  - name: "cluster-c"
+    api: "api.cluster-c.sbb.ch:6443"
+    groups:
+      - stage/dev
+      - cloud/aws
+      - platform/ocp4
+      - cluster/shared
+      - cluster/batch-nodes
+    applications:
+      - name: "gitops-operator"
+        sharedChart: "olm-operator"
+        namespace: gitops-operator
+        project: "default"

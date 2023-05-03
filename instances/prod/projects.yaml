@@ -1,0 +1,68 @@
+---
+# projects: Dictionary of projects
+#
+# The dictionary keys are used as the project name and the values are the project configuration.
+#
+# All fields of each entry will be rendered as-is into the resulting AppProject resource
+# (check https://argo-cd.readthedocs.io/en/stable/operator-manual/project.yaml for available fields).
+
+# A few fields receive special treatment to make things easier or add functionality:
+#   sourceRepos,
+#   clusterResourceWhitelist:  If not set, default to permitting access to all resource types and all repos.
+#   destinations:              Similar to the normal "destinations" field, with the addition that if the "serverName"
+#                              field is used instead of "server", the template code will automatically fetch the
+#                              cluster API hostname for the server name given from the .Values.clusters dictionary.
+#                              The serverName is treated as a ^$ wrapped regex. If more than one cluster name matches
+#                              the regex, a destination for each cluster will be created.
+#                              Example:
+#                                projects:
+#                                  default:
+#                                    destinations:
+#                                      - namespace: "*"
+#                                        serverName: "test06"
+#   roles:                     List of project roles, with the same fields as documented at
+#                              https://argo-cd.readthedocs.io/en/stable/user-guide/projects/#configuring-rbac-with-projects
+#                              With the following additions:
+#                                * Policy templating
+#                                  Because when you define a role in the context of a project, you want to grant permissions
+#                                  to the role to something in the project (seems obvious, no? well ArgoCD doesn't agree), the
+#                                  following variables can be used in the rbac definitions to make this easier:
+#                                    * {{ .self.name }}: the name of the current role
+#                                    * {{ .self.subject }}: the policy subject name of the role ("proj:<project>:<role>")
+#                                    * {{ .self.project }}: the name of the project the role is defined in
+#                                  Don't ask me why ArgoCD choose an RBAC system where all policy definitions are global, independent
+#                                  of the context they are defined in, without providing the user shortcuts like the one above
+#                                * Role templates
+#                                  Adds the "ref" field to the role definition. If set it refers to an entry in .Values.projectRoleTemplates
+#                                  that will be merged with the role. The policies of the template and the role entry itself will be
+#                                  combined, with the polices of the template coming first
+#                                * Group matching
+#                                  The groups key contains a list of auth provider group names for users to get this policy assigned. It is intendend
+#                                  to be used with SSO authentification.
+#                              Example:
+#                                 projectRoleTemplates:
+#                                   sync-only:
+#                                     description: Sync only permissions
+#                                     policies:
+#                                       - p, {{ .self.subject }}, applications, get, {{ .self.project }}/*, allow
+#                                       - p, {{ .self.subject }}, applications, sync, {{ .self.project }}/*, allow
+#                                  projects:
+#                                    default:
+#                                      roles:
+#                                        - ref: "sync-only"
+#                                          policies:
+#                                            - p, {{ .self.subject }}, applications, sync, {{ .self.project }}/restricted, deny
+#                                          groups:
+#                                            - AD_GROUP_NAME
+projects:
+  default: {}
+  example:
+    sourceRepos:
+      - "https://github.com/schweizerischeBundesbahnen/container-platform-base.git"
+    destinations:
+      - namespace: "*"
+        serverName: "cluster-c"
+    roles:
+      - ref: "sync-only"
+        groups:
+          - SOME_AZURE_AD_GROUP

@@ -1,0 +1,17 @@
+{{- range $namespace, $nsConfig := .Values.namespaces }}
+{{- $nsName := tpl $namespace $ }}
+{{- $limitRange := (dict) }}
+{{- $_ := deepCopy (default (dict) $.Values.namespaceDefaults.limitRange) | mergeOverwrite $limitRange }}
+{{- $_ := deepCopy (default (dict) $nsConfig.limitRange) | mergeOverwrite $limitRange }}
+{{- with $limitRange }}
+kind: LimitRange
+apiVersion: v1
+metadata:
+  name: {{ .name }}
+  namespace: {{ $nsName }}
+spec:
+  limits:
+    {{- toYaml .limits | nindent 4 }}
+---
+{{- end }}
+{{- end }}
