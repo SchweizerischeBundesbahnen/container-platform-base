@@ -237,3 +237,52 @@
 
   {{- dict "result" $apps | toYaml -}}
 {{- end -}}
+
+{{/*
+  "internal.dfs" implements a Depths First Search based on
+  https://favtutor.com/blogs/depth-first-search-python
+  It uses the fact that the context given to a named template
+  is just a reference and can therefore used to hand values back
+  to the caller in its parameters, without the need for an explicit
+  return value.
+
+  The template expects to be called with a named map variable as follows:
+
+  {{- $params := dict "visited" (list) "graph" .Values.base "node" "group/name" -}}
+  {{- include "internal.dfs" $params -}}
+
+  The resulting group list can then be accessed via
+  {{ $params.visited }}
+*/}}
+{{- define "internal.dfs" -}}
+  {{- $params := . -}}
+  {{- $visited := .visited -}}
+  {{- $graph := .graph -}}
+  {{- $node := .node -}}
+  {{- if not (has $node $visited) -}}
+    {{- $visited = append $visited $node -}}
+    {{- $_ := set . "visited" $visited -}}
+    {{- $nodeData := default (dict) (get $graph $node) -}}
+    {{- $nodeGroups := default (list) $nodeData.groups -}}
+    {{- range $neighbor := $nodeGroups -}}
+      {{- $_ := set $params "node" $neighbor -}}
+      {{- include "internal.dfs" $params -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{/*
+  "cluster.resolve_nested_groups" uses the list of groups assigned
+  to a cluster and the clusterGroupApps to resolve nested groups
+  in the clusterGroupApps.
+*/}}
+{{- define "cluster.resolve_nested_groups" -}}
+  {{- $clusterGroups := index . 0 -}}
+  {{- $clusterGroupApps := index . 1 -}}
+  {{- $params := dict "visited" (list) "graph" $clusterGroupApps  -}}
+  {{- range $group := $clusterGroups -}}
+    {{- $_ := set $params "node" $group -}}
+    {{- include "internal.dfs" $params -}}
+  {{- end -}}
+  {{- dict "result" $params.visited | toYaml -}}
+{{- end -}}

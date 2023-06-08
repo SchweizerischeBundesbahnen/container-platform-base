@@ -13,6 +13,7 @@
 #   <group>:
 #     applications: []
 #     excludes: []
+#     groups: []
 #
 # Fields
 #
@@ -27,6 +28,7 @@
 #                                   See the "group.applications" template documentation in the _helpers.tpl file
 #                                   for details.
 #                                   As with everything related to groups: the order of the groups matters!.
+#   groups              (optional)  Nested groups for the given group.
 clusterGroupApps:
   # all clusters are imlicitely in the "all" group
   all:

@@ -11,6 +11,7 @@
 {{- if ne "all" (index $clusterGroups 0) }}
   {{ $clusterGroups = prepend $clusterGroups "all" }}
 {{- end }}
+{{- $clusterGroups = (include "cluster.resolve_nested_groups" (tuple $clusterGroups $clusterGroupApps) | fromYaml).result }}
 {{- $groupApps := include "group.applications" (tuple $clusterGroups $clusterGroupApps) | fromYaml }}
 {{- $mergeResult := include "cluster.mergeDictListsByKey" (tuple "name" $groupApps.result $cluster.applications) | fromYaml }}
 {{- $apps := get $mergeResult "result" }}

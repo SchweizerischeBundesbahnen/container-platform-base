@@ -512,6 +512,7 @@ class ClusterGroupApps(ConfigModel):
         for name, group in config.items():
             self.groups[name] = {
                 "excludes": group.get("excludes", []),
+                "groups": group.get("groups", []),
                 "applications": {},
             }
             for app_config in group.get("applications", []):
@@ -587,10 +588,9 @@ class Cluster(ConfigModel):
     Attributes
     ----------
     groups : list
-        the list of groups that are assigned to the cluster; the first group is always "all",
-        independent of the first item of the groups list in the config; if the config group list
-        already starts with "all" it will not be added a second time (nevertheless it will be added
-        a second time if "all" is part of the groups list aside from the first position)
+        The list of groups that are assigned to the cluster. Automatically resolves nested
+        groups pulled in via the cluster_group_apps.
+
     applications : dict
         a dictionary of Application objects, representing the applications assigned to this cluster;
         it contains the applications assigned directly to the cluster as well as the applications
@@ -616,7 +616,7 @@ class Cluster(ConfigModel):
             the directory layout to use
         """
         super().__init__(layout)
-        self.groups = ["all"]
+        self._raw_groups = ["all"]
         self._apps = []
         self._excludes = []
         for key, value in config.items():
@@ -627,11 +627,35 @@ class Cluster(ConfigModel):
             elif key == "excludeApplications":
                 rkey = "_excludes"
             elif key == "groups":
+                rkey = "_raw_groups"
                 if rval[0] == "all":
                     rval = rval[1:]
-                rval = self.groups + rval
+                rval = self._raw_groups + rval
             setattr(self, rkey, rval)
         self._cluster_group_apps = cluster_group_apps
+
+    @property
+    def groups(self) -> list:
+        # lazy loading, only generate the final group list (including inherited ones) when someone tries to use them
+        try:
+            return self._groups
+        except AttributeError:
+            self._groups = []
+            visited = set()
+
+            # Depth First Search implementation to resolve nested groups
+            # https://favtutor.com/blogs/depth-first-search-python
+            def _dfs(visited: set, graph: ClusterGroupApps, node: str) -> None:
+                if node not in visited:
+                    visited.add(node)
+                    self._groups.append(node)
+                    for neighbour in graph.groups.get(node, {}).get("groups", []):
+                        _dfs(visited, graph, neighbour)
+
+            for group in self._raw_groups:
+                _dfs(visited, self._cluster_group_apps, group)
+
+            return self._groups
 
     @property
     def applications(self) -> dict:
@@ -1381,6 +1405,34 @@ def list_cluster_apps(
     return 0
 
 
+def list_cluster_groups(instance: Instance, cluster_regex: str = ".*") -> int:
+    """
+    list_cluster_groups() implements the "list_cluster_groups" cli command. For each
+    cluster matching the given cluster regex, it prints a list of all groups
+    assigned to the cluster.
+
+    Parameters
+    ----------
+    instance : Instance
+        the Instance object for which the clusters should be listed
+    cluster_regex : str, optional
+        the regex used to select which clusters to operate on; the default '.*'
+    """
+    clusters = instance.select_clusters(cluster_regex)
+
+    for clustername, cluster in clusters.items():
+        indent = ""
+        if len(clusters) > 1:
+            print(f"{clustername}:")
+            indent = "  "
+        groups = cluster.groups
+        for group in groups:
+            result = f"{indent}{group}"
+            print(result)
+
+    return 0
+
+
 if __name__ == "__main__":
 
     def cmd_render(args: argparse.Namespace, instance: Instance) -> int:
@@ -1404,6 +1456,9 @@ if __name__ == "__main__":
 
     def cmd_list_cluster_apps(args: argparse.Namespace, instance: Instance) -> int:
         return list_cluster_apps(instance, args.clusters, args.applications, args.paths)
+
+    def cmd_list_cluster_groups(args: argparse.Namespace, instance: Instance) -> int:
+        return list_cluster_groups(instance, args.clusters)
 
     parser = argparse.ArgumentParser(
         # using 'description=__doc__' here kills all formatting of the header comment, making
@@ -1553,6 +1608,18 @@ if __name__ == "__main__":
         "--paths", default=False, action="store_true", help="show app paths"
     )
     list_cluster_apps_parser.set_defaults(func=cmd_list_cluster_apps)
+
+    list_cluster_groups_parser = subparsers.add_parser(
+        "list_cluster_groups", help="list groups for a cluster"
+    )
+    list_cluster_groups_parser.add_argument(
+        "clusters",
+        metavar="clusters",
+        nargs="?",
+        default=".*",
+        help="the clusters for which to list the applications; ^$ wrapped regex",
+    )
+    list_cluster_groups_parser.set_defaults(func=cmd_list_cluster_groups)
 
     args = parser.parse_args()
     layout = DirectoryLayout(
